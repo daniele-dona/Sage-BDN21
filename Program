@@ -1,0 +1,71 @@
+from itertools import count
+def companion_matrix(polynomial):
+    n=polynomial.degree()
+    left_block=block_matrix([[matrix(1,n-1)],[matrix.identity(n-1)]])
+    return block_matrix([[left_block,-matrix(polynomial.list()[:-1]).T]])
+
+##### Partial checks #####
+# In the following, CC and DD are unions of open cones,
+# and they are given as a list of such cones.
+def are_disjoint(CC, DD): # checks whether CC,DD are disjoint
+    return all(not C.intersection(D).is_solid() for C in CC for D in DD)
+def contained_in(CC,DD): # checks whether CC is contained in DD
+    P=[any([all([D.contains(r) for r in C.rays()]) for D in DD]) for C in CC]
+    return all(P)
+def transform_set(CC,L): # applies the linear transformation L to CC
+    return [Cone((L*C.rays().column_matrix()).T) for C in CC]
+
+##### Main functions: verifying hypotheses of the ping-pong lemma #####
+def verify_finite_order(f,g,J):
+    B=companion_matrix(g)
+    T=B*companion_matrix(f).inverse()
+    E=B*Permutation(range(f.degree(),0,-1)).to_matrix()
+    eta=next(k for k in count(1) if (B^k-1)^f.degree()==0)
+    if not B^eta==1:
+        return False # B is not of finite order
+    # build ping pong table
+    Xplus=[Cone(J.T),Cone(-J.T)]
+    Xminus=[Cone((E*J).T),Cone(-(E*J).T)]
+    Y=[C for k in [1..eta-1] for C in transform_set(Xplus+Xminus, B^k)
+       if not B^k==-1]
+    # verify ping pong
+    if not Xplus[0].is_solid():
+        return False # verifies (1)
+    if not are_disjoint(Xplus+Xminus, Y):
+        return False # verifies (2)
+    if not all(contained_in(transform_set(Xplus+Xminus, B^ii), Y) 
+               for ii in [1..eta-1] if not B^ii==-1):
+        return False # verifies (3)
+    if not contained_in(transform_set(Y+Xplus, T.inverse()), Xplus):
+        return False # verifies (4a)
+    if not contained_in(transform_set(Y+Xminus, T), Xminus):
+        return False # verifies (4b)
+    return True
+
+def verify_infinite_order(f,g,J,K=None):
+    B=companion_matrix(g)
+    T=B*companion_matrix(f).inverse()
+    E=B*Permutation(range(f.degree(),0,-1)).to_matrix()
+    eta=next(k for k in count(1) if (B^k-1)^f.degree()==0)
+    if K==None:
+        K=block_matrix([[J,E*J,(B^eta-1)*J,(B^eta-1)*E*J]])
+    # build ping pong table
+    Xplus=[Cone(J.T),Cone(-J.T)]
+    Xminus=[Cone((E*J).T),Cone(-(E*J).T)]
+    Ytemp=[Cone(K.T),Cone(-K.T)]
+    Yplus=[C for k in [1..eta] for C in transform_set(Ytemp, B^k)]
+    Yminus=transform_set(Yplus, E)
+    # verify ping pong for infinite order
+    if not Xplus[0].is_solid():
+        return False # verifies (1)
+    if not are_disjoint(Xplus+Xminus, Yplus+Yminus):
+        return False # verifies (2)
+    if not contained_in(transform_set(Xplus+Xminus+Yplus, B), Yplus):
+        return False # verifies (3a)
+    if not contained_in(transform_set(Xplus+Xminus+Yminus, B.inverse()), Yminus):
+        return False # verifies (3b)
+    if not contained_in(transform_set(Yplus+Yminus+Xplus, T.inverse()), Xplus):
+        return False # verifies (4a)
+    if not contained_in(transform_set(Yplus+Yminus+Xminus, T), Xminus):
+        return False # verifies (4b)
+    return True
